@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap");
+
+/* ── Afri-Souk Design Tokens ─────────────────────────── */
+:root {
+  --primary:        #C1572B;
+  --primary-hover:  #A8481F;
+  --primary-light:  #F4DCC9;
+
+  --ai-up:          #4F7A52;
+  --ai-warn:        #C98A2E;
+  --ai-danger:      #9C3B26;
+
+  --bg:             #FBF6EE;
+  --surface:        #F3E9D8;
+  --border:         #E3D5BD;
+  --text:           #241C15;
+  --text-muted:     #6B5D4F;
+}
+
+.dark {
+  --bg:             #15110D;
+  --surface:        #1F1812;
+  --border:         #34281D;
+  --text:           #F3E9D8;
+  --text-muted:     #B8A88F;
+}
+
+/* ── Base ─────────────────────────────────────────────── */
+* { border-color: var(--border); }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, sans-serif;
+  transition: background 0.2s, color 0.2s;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* ── Signature : bandeau de rayures (référence textile) ── */
+.stripe-band {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    #c1572b 0%, #c1572b 20%,
+    #c98a2e 20%, #c98a2e 40%,
+    #1f3f54 40%, #1f3f54 60%,
+    #4f7a52 60%, #4f7a52 80%,
+    #e8b996 80%, #e8b996 100%
+  );
+  background-size: 80px 100%;
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Focus visible ────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Animations ───────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeIn 0.5s ease both; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
