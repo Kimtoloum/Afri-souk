@@ -135,44 +135,118 @@ function forecastWeeklySales(historicalSales: number[]): WeeklySalePoint[] {
 
 /* ── Main Report Builder ──────────────────────────────── */
 
-/**
- * Données simulées — remplace par des vraies requêtes Prisma en production.
- *
- * Exemple avec Prisma :
- * const sales = await prisma.sale.groupBy({
- *   by: ['productId'],
- *   _sum: { quantity: true },
- *   where: { date: { gte: subWeeks(new Date(), 8) } },
- * });
- */
-function getMockData() {
-  const categoryData: RawCategoryData[] = [
-    { category: "Artisanat",    weeklySales: [120, 135, 142, 158, 172, 168, 185, 201] },
-    { category: "Mode",         weeklySales: [80,  92,  88,  101, 95,  110, 118, 125] },
-    { category: "Alimentation", weeklySales: [60,  65,  70,  72,  68,  75,  80,  88]  },
-    { category: "Bijoux",       weeklySales: [30,  28,  32,  25,  29,  27,  24,  22]  },
-    { category: "Déco",         weeklySales: [45,  42,  40,  38,  41,  37,  34,  30]  },
-  ];
+import { prisma } from "@/lib/prisma";
 
-  const stockData: RawProductStock[] = [
-    { productId: "p1", productName: "Boubou brodé",    currentStock: 2,  avgDailySales: 1.2 },
-    { productId: "p2", productName: "Robe wax Kente",  currentStock: 8,  avgDailySales: 1.5 },
-    { productId: "p3", productName: "Djembé artisanal",currentStock: 24, avgDailySales: 0.8 },
-    { productId: "p4", productName: "Épices du Sahel", currentStock: 45, avgDailySales: 3.0 },
-    { productId: "p5", productName: "Vase Berbère",    currentStock: 12, avgDailySales: 0.5 },
-  ];
+/* ── Data fetching (Prisma) ───────────────────────────── */
 
-  const totalWeeklySales = [335, 362, 372, 394, 405, 417, 441, 466];
+const WEEKS_OF_HISTORY = 8;
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
-  return { categoryData, stockData, totalWeeklySales };
+/** Renvoie l'index de semaine (0 = il y a WEEKS_OF_HISTORY semaines, dernier = semaine en cours) */
+function weekIndexFromNow(date: Date, now: Date): number {
+  const diffMs = now.getTime() - date.getTime();
+  const weeksAgo = Math.floor(diffMs / MS_PER_WEEK);
+  return WEEKS_OF_HISTORY - 1 - weeksAgo; // 0..WEEKS_OF_HISTORY-1
+}
+
+async function getRealData() {
+  const now = new Date();
+  const since = new Date(now.getTime() - WEEKS_OF_HISTORY * MS_PER_WEEK);
+
+  // Toutes les ventes des 8 dernières semaines, avec la catégorie du produit
+  const sales = await prisma.sale.findMany({
+    where: { date: { gte: since } },
+    select: {
+      quantity: true,
+      date: true,
+      productId: true,
+      product: { select: { name: true, category: true, stock: true } },
+    },
+  });
+
+  /* ── Agrégation par catégorie × semaine ─────────────── */
+  const categoryBuckets = new Map<Category, number[]>();
+  const totalBuckets: number[] = new Array(WEEKS_OF_HISTORY).fill(0);
+
+  for (const sale of sales) {
+    const wi = weekIndexFromNow(sale.date, now);
+    if (wi < 0 || wi >= WEEKS_OF_HISTORY) continue;
+
+    const cat = sale.product.category as Category;
+    if (!categoryBuckets.has(cat)) {
+      categoryBuckets.set(cat, new Array(WEEKS_OF_HISTORY).fill(0));
+    }
+    categoryBuckets.get(cat)![wi] += sale.quantity;
+    totalBuckets[wi] += sale.quantity;
+  }
+
+  const categoryData: RawCategoryData[] = Array.from(categoryBuckets.entries()).map(
+    ([category, weeklySales]) => ({ category, weeklySales })
+  );
+
+  /* ── Agrégation par produit (stock + vélocité de vente) ──── */
+  const productSalesMap = new Map<
+    string,
+    { name: string; stock: number; totalQty: number; daysSpan: number }
+  >();
+
+  for (const sale of sales) {
+    const existing = productSalesMap.get(sale.productId);
+    if (existing) {
+      existing.totalQty += sale.quantity;
+    } else {
+      productSalesMap.set(sale.productId, {
+        name: sale.product.name,
+        stock: sale.product.stock,
+        totalQty: sale.quantity,
+        daysSpan: WEEKS_OF_HISTORY * 7,
+      });
+    }
+  }
+
+  // Inclut aussi les produits sans aucune vente récente (vélocité = 0, pas d'urgence)
+  const allProducts = await prisma.product.findMany({
+    select: { id: true, name: true, stock: true },
+  });
+  for (const p of allProducts) {
+    if (!productSalesMap.has(p.id)) {
+      productSalesMap.set(p.id, { name: p.name, stock: p.stock, totalQty: 0, daysSpan: WEEKS_OF_HISTORY * 7 });
+    } else {
+      // garde le stock le plus à jour (table Product, pas Sale)
+      productSalesMap.get(p.id)!.stock = p.stock;
+    }
+  }
+
+  const stockData: RawProductStock[] = Array.from(productSalesMap.entries()).map(
+    ([productId, d]) => ({
+      productId,
+      productName: d.name,
+      currentStock: d.stock,
+      avgDailySales: d.totalQty / d.daysSpan,
+    })
+  );
+
+  return { categoryData, stockData, totalWeeklySales: totalBuckets };
 }
 
 export async function generatePredictionReport(): Promise<PredictionReport> {
-  // In production: fetch real data from Prisma here
-  const { categoryData, stockData, totalWeeklySales } = getMockData();
+  const { categoryData, stockData, totalWeeklySales } = await getRealData();
+
+  // Pas encore de données de vente en base (projet flambant neuf) : renvoie un rapport vide
+  // plutôt que de planter — le dashboard affichera un état "pas encore de données".
+  if (categoryData.length === 0 && stockData.length === 0) {
+    return {
+      generatedAt: new Date(),
+      categoryPredictions: [],
+      stockAlerts: [],
+      weeklySales: [],
+    };
+  }
 
   const categoryPredictions = categoryData.map(predictCategory);
-  const stockAlerts = stockData.map(predictStockAlert);
+  const stockAlerts = stockData
+    .map(predictStockAlert)
+    .sort((a, b) => a.daysUntilOut - b.daysUntilOut); // les plus urgents en premier
   const weeklySales = forecastWeeklySales(totalWeeklySales);
 
   return {
