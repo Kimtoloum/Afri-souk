@@ -6,7 +6,7 @@ import { StockAlerts } from "@/components/dashboard/StockAlerts";
 import { generatePredictionReport } from "@/lib/predictions";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Dashboard IA" };
+export const metadata: Metadata = { title: "dashboard IA" };
 export const dynamic = "force-dynamic";
 
 /* ── Metric card ──────────────────────────────────────── */
