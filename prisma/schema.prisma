@@ -36,6 +36,7 @@ model Sale {
 
 model Order {
   id            String      @id @default(cuid())
+  orderNumber   String      @unique
   status        OrderStatus @default(PENDING)
   total         Float
   customerName  String
@@ -43,12 +44,21 @@ model Order {
   customerPhone String
   address       String
   city          String
+  paymentMethod String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([customerEmail])
+}
+
+// Compteur atomique utilisé pour générer les numéros de commande
+// lisibles (ex: AS-2026-0001), un compteur par année civile.
+model OrderSequence {
+  year      Int @id
+  lastValue Int @default(0)
 }
 
 model OrderItem {

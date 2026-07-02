@@ -47,9 +47,15 @@ export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "
 
 export interface OrderItem { id: string; productId: string; name: string; price: number; quantity: number; }
 export interface Order {
-  id: string; status: OrderStatus; total: number;
+  id: string; orderNumber: string; status: OrderStatus; total: number;
   customerName: string; customerEmail: string; customerPhone: string;
-  address: string; city: string; createdAt: Date; items: OrderItem[];
+  address: string; city: string; paymentMethod?: string | null; createdAt: Date; items: OrderItem[];
+}
+
+/** Saisie du formulaire "Mes commandes" (email + n° de commande, sans compte client). */
+export interface OrderLookupInput {
+  email: string;
+  orderNumber: string;
 }
 
 export type TrendDirection = "up" | "down" | "stable";

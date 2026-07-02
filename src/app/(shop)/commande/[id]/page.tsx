@@ -4,31 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, Badge } from "@/components/ui";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { PAYMENT_LABELS, CITY_INFO, STATUS_CONFIG, formatFCFA } from "@/lib/order-format";
 
 export const metadata: Metadata = { title: "Commande confirmée" };
-
-const PAYMENT_LABELS: Record<string, string> = {
-  wave: "Wave", flooz: "Flooz (Moov)", tmoney: "T-Money (Togocom)",
-  airtel_money: "Airtel Money", carte_bancaire: "Carte bancaire",
-  crypto: "Crypto", livraison: "À la livraison",
-};
-
-const CITY_INFO: Record<string, { label: string; flag: string; days: string }> = {
-  lome:     { label: "Lomé",      flag: "🇹🇬", days: "24–48h"    },
-  ndjamena: { label: "N'Djaména", flag: "🇹🇩", days: "3–5 jours" },
-};
-
-const STATUS_CONFIG = {
-  PENDING:    { label: "En attente",    variant: "warning" as const },
-  PROCESSING: { label: "En préparation", variant: "default" as const },
-  SHIPPED:    { label: "En livraison",  variant: "default" as const },
-  DELIVERED:  { label: "Livré",         variant: "success" as const },
-  CANCELLED:  { label: "Annulé",        variant: "danger"  as const },
-};
-
-function formatFCFA(amount: number) {
-  return new Intl.NumberFormat("fr-FR").format(amount) + " F CFA";
-}
 
 export default async function OrderConfirmationPage({
   params,
@@ -42,7 +20,6 @@ export default async function OrderConfirmationPage({
 
   if (!order) notFound();
 
-  const shortId = order.id.slice(-8).toUpperCase();
   const cityInfo = CITY_INFO[order.city] ?? { label: order.city, flag: "📍", days: "À confirmer" };
   const statusConfig = STATUS_CONFIG[order.status];
 
@@ -59,10 +36,13 @@ export default async function OrderConfirmationPage({
             Commande confirmée !
           </h1>
           <p className="text-[var(--text-muted)] text-sm">
-            Merci <strong className="text-[var(--text)]">{order.customerName}</strong> — votre commande <strong className="text-[var(--text)]">#{shortId}</strong> a bien été reçue.
+            Merci <strong className="text-[var(--text)]">{order.customerName}</strong> — votre commande <strong className="text-[var(--text)]">{order.orderNumber}</strong> a bien été reçue.
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-1">
             Un email de confirmation a été envoyé à {order.customerEmail}
+          </p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">
+            Réf. technique : {order.id}
           </p>
         </div>
 
@@ -100,7 +80,7 @@ export default async function OrderConfirmationPage({
               <CreditCard className="w-4 h-4 text-[var(--text-muted)]" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-[var(--text)]">
-                  {PAYMENT_LABELS[order.city] ?? "Paiement"}
+                  {(order.paymentMethod && PAYMENT_LABELS[order.paymentMethod]) ?? "Paiement"}
                 </p>
                 <p className="text-xs text-[var(--text-muted)]">
                   {order.status === "PENDING" ? "En attente de confirmation" : "Confirmé"}
@@ -143,6 +123,15 @@ export default async function OrderConfirmationPage({
             <Mail className="w-4 h-4 shrink-0" />
             Confirmation envoyée à <strong className="text-[var(--text)]">{order.customerEmail}</strong>
           </div>
+
+          {/* Suivi de commande */}
+          <p className="text-center text-xs text-[var(--text-muted)]">
+            Retrouvez cette commande à tout moment sur{" "}
+            <Link href="/mes-commandes" className="text-primary-600 hover:underline">
+              Mes commandes
+            </Link>{" "}
+            avec votre email et le numéro {order.orderNumber}.
+          </p>
 
           {/* CTA */}
           <div className="flex flex-col sm:flex-row gap-3 mt-2">

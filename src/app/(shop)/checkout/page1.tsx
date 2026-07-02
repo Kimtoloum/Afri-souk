@@ -19,7 +19,7 @@ const schema = z
     customerEmail: z.string().email("Email invalide"),
     customerPhone: z.string().min(8, "Numéro de téléphone invalide"),
     address:       z.string().min(5, "Adresse requise"),
-    city:          z.enum(["lome", "ndjamena"], { required_error: "Choisissez une ville de livraison" }),
+    city: z.string().min(2, "Veuillez saisir votre ville"),
     paymentMethod: z.enum(
       ["wave", "flooz", "tmoney", "airtel_money", "carte_bancaire", "crypto", "livraison"],
       { required_error: "Choisissez un mode de paiement" }
@@ -54,51 +54,49 @@ function Field({
   );
 }
 
-/* ── Input ────────────────────────────────────────────── */
-const Input = forwardRef<
-  HTMLInputElement,
-  React.InputHTMLAttributes<HTMLInputElement> & { error?: boolean }
->(({ error, className, ...props }, ref) => (
-  <input
-    ref={ref}
-    className={cn(
-      "h-10 w-full rounded-lg border px-3 text-sm bg-[var(--bg)] text-[var(--text)] placeholder:text-[var(--text-muted)] transition-colors",
-      "focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1",
-      error ? "border-[#EF4444]" : "border-[var(--border)] hover:border-[var(--text-muted)]",
-      className
-    )}
-    {...props}
-  />
-));
-Input.displayName = "Input";
+import { forwardRef } from "react";
 
-/* ── Select ───────────────────────────────────────────── */
-const Select = forwardRef<
-  HTMLSelectElement,
-  React.SelectHTMLAttributes<HTMLSelectElement> & { error?: boolean }
->(({ error, className, children, ...props }, ref) => (
-  <div className="relative">
-    <select
+const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { error?: boolean }>(
+  ({ error, className, ...props }, ref) => (
+    <input
       ref={ref}
       className={cn(
-        "h-10 w-full appearance-none rounded-lg border px-3 pr-9 text-sm bg-[var(--bg)] text-[var(--text)] transition-colors",
+        "h-10 w-full rounded-lg border px-3 text-sm bg-[var(--bg)] text-[var(--text)] placeholder:text-[var(--text-muted)] transition-colors",
         "focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1",
         error ? "border-[#EF4444]" : "border-[var(--border)] hover:border-[var(--text-muted)]",
         className
       )}
       {...props}
-    >
-      {children}
-    </select>
-    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
-  </div>
-));
+    />
+  )
+);
+Input.displayName = "Input";
+
+const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement> & { error?: boolean }>(
+  ({ error, className, children, ...props }, ref) => (
+    <div className="relative">
+      <select
+        ref={ref}
+        className={cn(
+          "h-10 w-full appearance-none rounded-lg border px-3 pr-9 text-sm bg-[var(--bg)] text-[var(--text)] transition-colors",
+          "focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-1",
+          error ? "border-[#EF4444]" : "border-[var(--border)] hover:border-[var(--text-muted)]",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
+    </div>
+  )
+);
 Select.displayName = "Select";
 
 /* ── Page ─────────────────────────────────────────────── */
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, clearCart } = useCartStore();
+  const { items, totalPrice, clearCart } = useCartStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -110,8 +108,8 @@ export default function CheckoutPage() {
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  const selectedCity     = watch("city") as DeliveryCity | undefined;
-  const selectedPayment  = watch("paymentMethod") as PaymentMethod | undefined;
+  const selectedCity = watch("city") as DeliveryCity | undefined;
+  const selectedPayment = watch("paymentMethod") as PaymentMethod | undefined;
   const selectedPaymentConfig = PAYMENT_METHODS.find((m) => m.id === selectedPayment);
 
   // Redirige si panier vide
@@ -122,6 +120,7 @@ export default function CheckoutPage() {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     setSubmitError(null);
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -131,8 +130,11 @@ export default function CheckoutPage() {
           items: items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
         }),
       });
+
       const json = await res.json();
+
       if (!json.ok) throw new Error(json.error);
+
       clearCart();
       router.push(`/commande/${json.data.id}`);
     } catch (err) {
@@ -157,7 +159,7 @@ export default function CheckoutPage() {
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
 
-            {/* ── Formulaire gauche ─────────────────── */}
+            {/* ── Formulaire gauche ───────────────────── */}
             <div className="flex flex-col gap-6">
 
               {/* Infos personnelles */}
@@ -196,15 +198,12 @@ export default function CheckoutPage() {
               <section className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-5 flex flex-col gap-4">
                 <h2 className="font-medium text-[var(--text)] text-sm">Adresse de livraison</h2>
 
-                <Field label="Ville de livraison" error={errors.city?.message} required>
-                  <Select {...register("city")} error={!!errors.city} defaultValue="">
-                    <option value="" disabled>Choisir une ville…</option>
-                    {DELIVERY_ZONES.map((z) => (
-                      <option key={z.id} value={z.id}>
-                        {z.flag} {z.label}, {z.country} — {z.estimatedDays} ({new Intl.NumberFormat("fr-FR").format(z.deliveryFee)} F CFA)
-                      </option>
-                    ))}
-                  </Select>
+               <Field label="Ville" error={errors.city?.message} required>
+                  <Input
+                    {...register("city")}
+                    placeholder="Ex : Lomé"
+                    error={!!errors.city}
+                  />
                 </Field>
 
                 <Field label="Adresse complète" error={errors.address?.message} required>
@@ -226,6 +225,7 @@ export default function CheckoutPage() {
                   error={errors.paymentMethod?.message}
                 />
 
+                {/* Numéro mobile money */}
                 {selectedPaymentConfig?.requiresPhone && (
                   <Field
                     label={`Numéro ${selectedPaymentConfig.label}`}
@@ -241,6 +241,7 @@ export default function CheckoutPage() {
                   </Field>
                 )}
 
+                {/* Info crypto */}
                 {selectedPayment === "crypto" && (
                   <div className="text-xs text-[var(--text-muted)] bg-[var(--surface)] rounded-lg p-3">
                     Les instructions de paiement crypto seront envoyées par email après confirmation de la commande.
@@ -248,13 +249,20 @@ export default function CheckoutPage() {
                 )}
               </section>
 
+              {/* Erreur submit */}
               {submitError && (
                 <div className="rounded-lg bg-[#FEE2E2] border border-[#FCA5A5] px-4 py-3 text-sm text-[#991B1B]">
                   {submitError}
                 </div>
               )}
 
-              <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
+              {/* Bouton */}
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting}
+                className="w-full"
+              >
                 {isSubmitting ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Traitement en cours…</>
                 ) : (
@@ -263,7 +271,7 @@ export default function CheckoutPage() {
               </Button>
             </div>
 
-            {/* ── Résumé droite ─────────────────────── */}
+            {/* ── Résumé droite ───────────────────────── */}
             <div className="lg:sticky lg:top-24">
               <OrderSummary items={items} city={selectedCity ?? ""} />
             </div>

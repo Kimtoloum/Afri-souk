@@ -12,6 +12,8 @@ interface OrderEmailParams {
   to: string;
   customerName: string;
   orderId: string;
+  /** Numéro de commande lisible (ex: AS-2026-0001). Optionnel pour ne pas casser d'anciens appels. */
+  orderNumber?: string;
   total: number;
   city: string;
   paymentMethod: string;
@@ -38,10 +40,10 @@ function formatFCFA(amount: number): string {
 }
 
 function buildEmailHTML(params: OrderEmailParams): string {
-  const { customerName, orderId, total, city, paymentMethod, items } = params;
+  const { customerName, orderId, orderNumber, total, city, paymentMethod, items } = params;
   const cityInfo = CITY_INFO[city] ?? { label: city, flag: "📍", days: "À confirmer" };
   const paymentLabel = PAYMENT_LABELS[paymentMethod] ?? paymentMethod;
-  const shortId = orderId.slice(-8).toUpperCase();
+  const displayNumber = orderNumber ?? orderId.slice(-8).toUpperCase();
 
   const itemsHTML = items
     .map(
@@ -75,7 +77,7 @@ function buildEmailHTML(params: OrderEmailParams): string {
                   </div>
                 </td>
                 <td align="right">
-                  <span style="color:rgba(255,255,255,0.7);font-size:12px;">Commande #${shortId}</span>
+                  <span style="color:rgba(255,255,255,0.7);font-size:12px;">Commande ${displayNumber}</span>
                 </td>
               </tr>
             </table>
@@ -150,10 +152,12 @@ export async function sendOrderConfirmationEmail(
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
 
+  const displayNumber = params.orderNumber ?? params.orderId.slice(-8).toUpperCase();
+
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY manquant — email non envoyé (mode dev)");
     console.log("[email] Destinataire:", params.to);
-    console.log("[email] Commande #", params.orderId.slice(-8).toUpperCase());
+    console.log("[email] Commande", displayNumber);
     return;
   }
 
@@ -163,7 +167,7 @@ export async function sendOrderConfirmationEmail(
   const { error } = await resend.emails.send({
     from: "Afri-Souk <noreply@afri-souk.com>",
     to: params.to,
-    subject: `Confirmation de commande #${params.orderId.slice(-8).toUpperCase()} — Afri-Souk`,
+    subject: `Confirmation de commande ${displayNumber} — Afri-Souk`,
     html: buildEmailHTML(params),
   });
 
